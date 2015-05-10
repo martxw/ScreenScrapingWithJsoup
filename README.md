@@ -8,4 +8,4 @@ To build and run this:
  - Run `mvn compile exec:java`.
  - You will now have a `locations.csv` file that you can import into "My maps" in Google Maps.
 
-More detailed instructions are in [intro.html](docs/intro.html).
+More detailed instructions are in [intro.html](http://martxw.github.io/ScreenScrapingWithJsoup/intro.html).
