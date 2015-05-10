@@ -1,0 +1,233 @@
+<html>
+<head>
+<title>Screen Scraping Open Farm Sunday with jsoup</title>
+<style>
+<!--
+html
+	{
+	background: cornsilk;
+	}
+body
+	{
+	background: white;
+	margin: auto;
+    width: 1000px;
+	padding: 10px;
+	font-size:11.0pt;
+	font-family:Arial;
+	}
+pre
+	{
+	font-size:10.0pt;
+	font-family:"Courier New";
+	background:#F3F3F9;
+	padding: 2px;
+	}
+-->
+</style>
+</head>
+<body>
+
+<h1>Screen Scraping Open Farm Sunday with jsoup</h1>
+
+<p>I like to visit farms that participate in the annual Open
+Farm Sunday, which is 7th June this year. But their web site - <a href="http://www.farmsunday.org">http://www.farmsunday.org</a>
+- doesn't make it easy to find the farms nearest where I am or where I can
+easily get to.</p>
+
+<p>Luckily they let you search for and list all of the farms on a single page, in a
+table that's pretty easy to screen scrape.</p>
+
+<p><img src="openfarm_table.png"/></p>
+
+<p>The key part of the HTML is the table tagged with the class "scrolllist" and the rows within it.</p>
+
+<code><pre>&lt;table class=&quot;scrolllist&quot; cellspacing=&quot;0&quot; cellpadding=&quot;4&quot; width=&quot;530&quot; border=&quot;0&quot;&gt;
+  &lt;tbody&gt;&lt;tr&gt;
+    &lt;th nowrap=&quot;nowrap&quot; align=&quot;left&quot;&gt;
+      Farm
+    &lt;/th&gt;
+    &lt;th nowrap=&quot;nowrap&quot; align=&quot;left&quot;&gt;
+      Postcode
+    &lt;/th&gt;
+    &lt;th nowrap=&quot;nowrap&quot; align=&quot;left&quot;&gt;
+      Region
+    &lt;/th&gt;
+  &lt;/tr&gt;
+
+&lt;tr class=&quot;farmevent&quot;&gt;
+  &lt;td align=&quot;left&quot;&gt;
+    &lt;strong&gt;
+      A J &amp;amp; C I Snell&lt;/strong&gt;
+  &lt;/td&gt;
+  &lt;td align=&quot;left&quot;&gt;
+    &lt;a href=&quot;https://www.google.com/maps/preview?q=HR2%208JS&quot; target=&quot;_googlemap&quot;&gt;
+      HR2 8JS&lt;/a&gt;
+  &lt;/td&gt;
+  &lt;td align=&quot;left&quot;&gt;
+    West Midlands
+  &lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+  &lt;td colspan=&quot;3&quot; class=&quot;farmdescription&quot;&gt;
+    &lt;div style=&quot;float:left; width:522px;&quot;&gt;&lt;div class=&quot;navButton&quot;
+            onmouseout=&quot;lowlight(&amp;#39;b1047524&amp;#39;);&quot; onmouseover=&quot;highlight(&amp;#39;b1047524&amp;#39;);&quot;
+            style=&quot;float: right; padding-left: 38px; margin-right: -38px;&quot;&gt;
+      &lt;span id=&quot;b1047524&quot; class=&quot;navlink&quot; style=&quot;color: white;&quot;&gt;
+        &lt;a href=&quot;http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A4XWE17J3CL7C&quot;&gt;Click here for details &raquo;&lt;/a&gt;
+      &lt;/span&gt;
+    &lt;/div&gt;
+Windmill Hill,
+Harewood End,
+Hereford, etc...
+  &lt;/div&gt;&lt;/td&gt;
+&lt;/tr&gt;
+
+&lt;/tbody&gt;&lt;/table&gt;
+</pre></code>
+
+<p>Within the table, I'll want to skip over the header row, then from the <code>&lt;tr class=&quot;farmevent&quot;&gt;</code> get the farm name text from the first <code>&lt;td&gt;</code>,
+and get the postcode text from the second <code>&lt;td&gt;</code>.</p>
+<p>From the next <code>&lt;tr&gt;</code> we can get the URL for displaying details about the farm from the <code>"href"</code> attribute
+of the <code>&lt;a&gt;</code> within the <code>&lt;div class=&quot;navButton&quot;&gt;</code>.</p>
+
+<p>For Java programmers, there's a really easy to use library for parsing HTML and accessing its data - <a href="http://jsoup.org/">http://jsoup.org/</a>.</p>
+
+<ol>
+<li>
+<p>First, download the HTML containing the full list of
+farms by visiting <a href="http://www.farmsunday.org/ofs12b/visit/findfarm.eb">http://www.farmsunday.org/ofs12b/visit/findfarm.eb</a> and doing
+a search. Save the HTML to a local file, overwriting the sample <code>downloaded.html</code>.</p>
+</li>
+
+<li>
+<p>Check the Maven <code>pom.xml</code> file which contins a dependency to fetch the jsoup library:</p>
+
+<code><pre>&lt;dependency&gt;
+  &lt;!-- jsoup HTML parser library @ http://jsoup.org/ --&gt;
+  &lt;groupId&gt;org.jsoup&lt;/groupId&gt;
+  &lt;artifactId&gt;jsoup&lt;/artifactId&gt;
+  &lt;version&gt;1.8.2&lt;/version&gt;
+&lt;/dependency&gt;</pre></code>
+
+</li>
+
+<li>
+<p>The Java source is in <code>ExtractFarmDetails.java<code>:</p>
+
+<code><pre>package uk.co.mwink.openfarmsundayscraper;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintStream;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+
+/**
+ * Screen scraper for building a Google Maps compatible CSV file from the Open Farm Sunday listings.
+ */
+public class ExtractFarmDetails {
+
+    public static void main(String[] args) throws IOException {
+        // The HTML, saved to a local file, resulting from a POSTed form.
+        File input = new File(args[0]);
+
+        PrintStream out = new PrintStream(new File(args[1]));
+        // Header for the CSV file.
+        out.printf(&quot;Name,Postcode,URL\n&quot;);
+
+        // Open the HTML, and reference the original web site.
+        Document doc = Jsoup.parse(input, &quot;UTF-8&quot;, &quot;http://www.farmsunday.org/&quot;);
+
+        // Search for &lt;table class=&quot;scrolllist&quot;&gt; and return all of the &lt;tr&gt; elements within it.
+        Element[] rowElements = doc.select(&quot;table.scrolllist tr&quot;).toArray(new Element[0]);
+
+        // The table contains 1 header row, and 2 rows per farm.
+        for (int i = 0; i &lt; (rowElements.length - 1) / 2; i++) {
+            // Get the alternating &quot;farmevent&quot; and description rows.
+            Element farmEvent = rowElements[i * 2 + 1];
+            Element farmDescription = rowElements[i * 2 + 2];
+            out.printf(&quot;%s,%s,%s\n&quot;,
+                    // The farm name is in the 1st &lt;td&gt;.
+                    noCommas(farmEvent.select(&quot;td:nth-child(1)&quot;).text()),
+                    // The postcode is in the 2nd &lt;td&gt;.
+                    noCommas(farmEvent.select(&quot;td:nth-child(2)&quot;).text()),
+                    // Get the URL from the href attribute in the &lt;a&gt; within the &lt;span class=&quot;navlink&quot;&gt;
+                    noCommas(farmDescription.select(&quot;.navlink a&quot;).attr(&quot;href&quot;)));
+        }
+        out.close();
+    }
+
+    // Mustn't have commas in the CSV data.
+    static String noCommas(String data) {
+        return data.replace(',', ';');
+    }
+}
+</pre></code>
+</li>
+
+<li>
+<p>Run the program with the Maven commandline <code>mvn compile exec:java</code>. The <code>pom.xml</code> specifies the commandline
+arguments <code>downloaded.html locations.csv</code> by default.</p>
+
+<p>This should result in a <code>locations.csv</code> that starts like this if you've downloaded the full search results from
+<a href="http://www.farmsunday.org/ofs12b/visit/findfarm.eb">http://www.farmsunday.org/ofs12b/visit/findfarm.eb</a>.</p>
+
+<code><pre>Name,Postcode,URL
+A J & C I Snell,HR2 8JS,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A4XWE17J3CL7C
+Abbey Home Farm,GL7 5HF,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A4YACVELJR9O4
+AE Banks & Son Ltd,YO61 4AF,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A7631PLUJI7U7
+Amelia Trust Farm,CF62 3AS,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A34B0EM72Y9DT
+Apley Farm Shop,TF11 9EF,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A1C8CYNVR1UAA
+Ash Tree Farm,DE6 3AL,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A7AFMSWAN9XA9
+Askham Bryan College,YO23 3FR,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A6XO1R51RSTHP
+Asney Park Farm,LL13 0DS,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A3CY2D2RWOMFA
+Awnells Farm,GL19 4QB,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A6V7AOXZDOWA3
+B R Brooks & Son,ME13 9DA,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A5QEKXSAQAG2T
+Badlesmere Court Farm,ME13 0NL,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A44KMH4W1GYZU
+Bakers of Haselbury Plucknett,TA18 7PH,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A2BJPL64S5X4B
+Barleylands Farm,CM11 2UD,http://www.farmsunday.org/ofs12b/visit/event_details.eb?guid=1OXH0BEN62.A39YLYKXLILYC</pre></code>
+</li>
+
+<li><p>Now go to Google Maps.</p>
+  <ul>
+  <li>
+  <p>Click in the search text box and look for "My maps" in the list that drops down, and click on it.</p>
+  </li>
+
+  <li>
+  <p>Click on the "Create" button, and look for the "Import" command in the new map. After clicking on that you should select the <code>locations.csv</code> file you saved earler.</p>
+  </li>
+
+  <li>
+  <p>Google maps now asks which column contains the location information, so select "Postcode" and click "Continue".</p>
+  </li>
+
+  <li>
+  <p>Maps now wants to know which column specifies the title for the markers. Choose "Name" and click "Finish".</p>
+  </li>
+
+  <li>
+  <p>Maps now takes a while to import your data, and then displays the map with all of the farm locations on it.</p>
+  </li>
+
+  <li>
+  <p>You can now customize the map, name it, share it, and embed it within your own web site like this.</p>
+  <iframe src="https://www.google.com/maps/d/u/0/embed?mid=zhEBwOE7tzhM.kPdr_Q4_cEA4" width="800" height="600"></iframe>
+  </li>
+  </ul>
+
+</li>
+</ol>
+
+<p>I can now easily see which farms are near me, and I can quickly click through to read what they're planning to show on the day.</p>
+
+<p>And hopefully this quick run through will be helpful to anyone else thinking about scraping data out of other web sites to present it better.</p>
+
+<p> Many thanks to Jonathan Hedley for producing jsoup which makes it so easy with CSS-style selectors.</p>
+
+<p>Martin Wink, 9 May 2015</p>
+<img src="https://www.mwink.co.uk/analytics/1.gif" width="0" height="0" border="0">
+</body>
+</html>
