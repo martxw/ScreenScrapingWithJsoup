@@ -3,6 +3,7 @@ package uk.co.mwink.openfarmsundayscraper;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import org.jsoup.Jsoup;
@@ -29,7 +30,7 @@ public class ExtractFarmDetails {
                 .post();
 
         // Save the CSV to a file including the date in its name.
-        SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+        SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd-hh-mm");
         String filename = String.format("location_%s.csv", DATE_FORMAT.format(new Date()));
         PrintStream out = new PrintStream(new File(filename));
 
